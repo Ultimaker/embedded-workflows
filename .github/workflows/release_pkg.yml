@@ -43,6 +43,7 @@ jobs:
             echo " "
             docker run -v "$(pwd):/build" cloudsmith-cli:latest cloudsmith push deb ultimaker/${{ env.RELEASE_REPO }}/debian/buster /build/${package} -k ${{ secrets.CLOUDSMITH_API_KEY }}
             docker run -v "$(pwd):/build" cloudsmith-cli:latest cloudsmith push deb ultimaker/${{ env.RELEASE_REPO }}/debian/bullseye /build/${package} -k ${{ secrets.CLOUDSMITH_API_KEY }}
+            docker run -v "$(pwd):/build" cloudsmith-cli:latest cloudsmith push deb ultimaker/${{ env.RELEASE_REPO }}/debian/bookworm /build/${package} -k ${{ secrets.CLOUDSMITH_API_KEY }}
           done;
          
       - name: Dump GitHub context
