@@ -1,0 +1,27 @@
+name: Check commits
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened]
+
+jobs:
+  check-for-fixup-commits:
+    name: 'Check !fixup commits'
+
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+        with:
+          fetch-depth: 0  # fetch all commits
+
+      - name: Check commit messages
+        run: |
+          echo "Target branch: ${{ github.base_ref }}"
+          forbidden=$(git log origin/${{ github.base_ref }}..HEAD --pretty=format:%s | grep -i '!fixup' || true)
+          if [ -n "$forbidden" ]; then
+            echo "❌ Found commit(s) with '!fixup' in the title:"
+            echo "$forbidden"
+            exit 1
+          fi
