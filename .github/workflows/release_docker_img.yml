@@ -17,7 +17,7 @@ on:
 env:
   DOCKER_IMAGE_NAME: ghcr.io/ultimaker/${{ inputs.DOCKER_IMAGE_NAME }}
   DOCKER_TAG_PREFIX: ${{ inputs.DOCKER_TAG_PREFIX }}
-  
+
 jobs:
   Build:
     name: 'Build and Release Docker Image'
@@ -33,7 +33,7 @@ jobs:
         id: ghcr_login
         run: |
           echo "${{ secrets.ULTIMAKER_CI_PAT }}" | docker login ghcr.io -u $ --password-stdin
-                   
+
       - name: Build Docker Image
         id: build
         run: |
@@ -55,11 +55,3 @@ jobs:
           echo "DOCKER_IMAGE_NAME: ${DOCKER_IMAGE_NAME}"
           echo "DOCKER_IMAGE_VERSION: ${DOCKER_IMAGE_VERSION}"
           docker push "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_VERSION}"
-
-      - name: Dump GitHub context
-        if: ${{ always() }}
-        run: |
-          echo "${{ toJson(github) }}"
-          echo "${{ toJson(steps) }}"
-          echo "${{ toJson(runner) }}"
-

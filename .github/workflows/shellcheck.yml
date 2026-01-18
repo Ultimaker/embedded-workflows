@@ -1,6 +1,6 @@
 on:
   workflow_call:
-  
+
 jobs:
   Shellcheck:
     name: 'Shell Check'
@@ -12,7 +12,7 @@ jobs:
           token: ${{ secrets.ULTIMAKER_CI_PAT }}
           submodules: recursive
           fetch-depth: 0
-         
+
       - name: Shell Check
         id: shellcheck
         run: |

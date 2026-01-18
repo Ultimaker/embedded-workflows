@@ -154,17 +154,3 @@ jobs:
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "The package metadata is embedded in the .deb file and used by GAR to automatically organize packages by distribution, eliminating the need for manual distribution tagging during upload." >> "$GITHUB_STEP_SUMMARY"
-
-      - name: Dump GitHub context
-        if: ${{ always() }}
-        env:
-          GITHUB_CONTEXT: ${{ toJson(github) }}
-          JOB_CONTEXT: ${{ toJson(job) }}
-          STEPS_CONTEXT: ${{ toJson(steps) }}
-          RUNNER_CONTEXT: ${{ toJson(runner) }}
-        shell: bash
-        run: |
-          echo "${GITHUB_CONTEXT}"
-          echo "${JOB_CONTEXT}"
-          echo "${STEPS_CONTEXT}"
-          echo "${RUNNER_CONTEXT}"

@@ -11,21 +11,8 @@ jobs:
         with:
           token: ${{ secrets.ULTIMAKER_CI_PAT }}
           submodules: recursive
-         
+
       - name: Unit Test
         id: unittest
         run: |
           ./build_for_ultimaker.sh -a unittest
-
-      - name: Dump GitHub context
-        if: ${{ always() }}
-        env:
-           GITHUB_CONTEXT: ${{ toJson(github) }}
-           JOB_CONTEXT: ${{ toJson(job) }}
-           STEPS_CONTEXT: ${{ toJson(steps) }}
-           RUNNER_CONTEXT: ${{ toJson(runner) }}
-        run: |
-          echo "${GITHUB_CONTEXT}"
-          echo "${JOB_CONTEXT}"
-          echo "${STEPS_CONTEXT}"
-          echo "${RUNNER_CONTEXT}"
