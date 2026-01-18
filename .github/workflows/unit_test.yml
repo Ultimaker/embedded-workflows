@@ -1,10 +1,23 @@
 on:
   workflow_call:
+    inputs:
+      embedded_workflows_branch:
+        description: 'Branch to checkout embedded-workflows repo'
+        type: string
+        required: false
+        default: 'main'
 
 jobs:
   Unit_Test:
     name: 'Unit Test'
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    env:
+      DOCKER_REGISTRY: ${{ vars.EMB_DOCKER_REGISTRY || 'europe-west1-docker.pkg.dev' }}
+      DOCKER_PROJECT: ${{ vars.EMB_GCP_PROJECT }}
+      DOCKER_REPOSITORY: ${{ vars.EMB_DOCKER_REPOSITORY }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
@@ -12,7 +25,35 @@ jobs:
           token: ${{ secrets.ULTIMAKER_CI_PAT }}
           submodules: recursive
 
+      - name: Checkout Embedded-workflows repo
+        uses: actions/checkout@v4
+        with:
+          repository: Ultimaker/embedded-workflows
+          path: embedded-workflows
+          ref: ${{ inputs.embedded_workflows_branch }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Authenticate to Google Cloud using Workload Identity Federation
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: 'access_token'
+          workload_identity_provider: ${{ vars.EMB_WI_PROVIDER }}
+          service_account: ${{ vars.EMB_DOCKER_SERVICE_ACCOUNT }}
+
+      # Login to Google Artifact Registry for Docker operations
+      - name: Login to GAR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
       - name: Unit Test
         id: unittest
         run: |
-          ./build_for_ultimaker.sh -a unittest
+          # Use the centralized build script from embedded-workflows
+          ./embedded-workflows/scripts/build_for_ultimaker.sh -a unittest

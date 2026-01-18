@@ -10,7 +10,7 @@ on:
         description: 'Branch to checkout embedded-workflows repo'
         type: string
         required: false
-        default: 'EMB-115_migrate_to_gar'  # TODO: Change to `main` once merged
+        default: 'main'
     outputs:
       RELEASE_VERSION:
         description: "The package version for this build"
@@ -31,6 +31,13 @@ jobs:
   Prepare:
     name: 'Prepare Environment'
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
+    env:
+      DOCKER_REGISTRY: ${{ vars.EMB_DOCKER_REGISTRY || 'europe-west1-docker.pkg.dev' }}
+      DOCKER_PROJECT: ${{ vars.EMB_GCP_PROJECT }}
+      DOCKER_REPOSITORY: ${{ vars.EMB_DOCKER_REPOSITORY }}
     outputs:
       RELEASE_VERSION: ${{ steps.vars.outputs.RELEASE_VERSION }}
       RELEASE_REPO: ${{ steps.vars.outputs.RELEASE_REPO }}
@@ -78,9 +85,31 @@ jobs:
           echo "- **Ref Type**: \`${GITHUB_REF_TYPE}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Ref Name**: \`${GITHUB_REF_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
 
-        # TODO: Use Workload Identity Pool
+      # Authenticate to Google Cloud using Workload Identity Federation
+      - name: Authenticate to Google Cloud
+        if: ${{ inputs.BUILD_DOCKER_CACHE }}
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: 'access_token'
+          workload_identity_provider: ${{ vars.EMB_WI_PROVIDER }}
+          service_account: ${{ vars.EMB_DOCKER_SERVICE_ACCOUNT }}
+
+      # Login to Google Artifact Registry
+      - name: Login to GAR
+        if: ${{ inputs.BUILD_DOCKER_CACHE }}
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Set up Docker Buildx
+        if: ${{ inputs.BUILD_DOCKER_CACHE }}
+        uses: docker/setup-buildx-action@v3
+
       - name: "Build Docker Image Cache"
         if: ${{ inputs.BUILD_DOCKER_CACHE }}
         run: |
-          echo "${{ secrets.ULTIMAKER_CI_PAT }}" | docker login ghcr.io -u $ --password-stdin
-          ./build_for_ultimaker.sh -a build_docker_cache
+          # Use the centralized build script from embedded-workflows
+          ./embedded-workflows/scripts/build_for_ultimaker.sh -a build_docker_cache

@@ -5,19 +5,57 @@ on:
         description: "The version to build the package"
         required: true
         type: string
+      embedded_workflows_branch:
+        description: 'Branch to checkout embedded-workflows repo'
+        type: string
+        required: false
+        default: 'main'
 
 jobs:
   Build:
     name: 'Build Package'
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     env:
       RELEASE_VERSION: ${{ inputs.RELEASE_VERSION }}
+      DOCKER_REGISTRY: ${{ vars.EMB_DOCKER_REGISTRY || 'europe-west1-docker.pkg.dev' }}
+      DOCKER_PROJECT: ${{ vars.EMB_GCP_PROJECT }}
+      DOCKER_REPOSITORY: ${{ vars.EMB_DOCKER_REPOSITORY }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           token: ${{ secrets.ULTIMAKER_CI_PAT }}  # TODO: Remove PAT (limit long-lived secrets)
           submodules: recursive
+
+      - name: Checkout Embedded-workflows repo
+        uses: actions/checkout@v4
+        with:
+          repository: Ultimaker/embedded-workflows
+          path: embedded-workflows
+          ref: ${{ inputs.embedded_workflows_branch }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      # Authenticate to Google Cloud using Workload Identity Federation
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v2
+        with:
+          token_format: 'access_token'
+          workload_identity_provider: ${{ vars.EMB_WI_PROVIDER }}
+          service_account: ${{ vars.EMB_DOCKER_SERVICE_ACCOUNT }}
+
+      # Login to Google Artifact Registry for Docker operations
+      - name: Login to GAR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.DOCKER_REGISTRY }}
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
 
       - name: Build Package
         id: build
@@ -34,7 +72,8 @@ jobs:
           export RELEASE_VERSION="${{ env.RELEASE_VERSION }}"
           echo "RELEASE_VERSION: ${RELEASE_VERSION}"
           
-          ./build_for_ultimaker.sh -a build
+          # Use the centralized build script from embedded-workflows
+          ./embedded-workflows/scripts/build_for_ultimaker.sh -a build
 
       - name: Upload Artifact (Built package)
         uses: actions/upload-artifact@v4
