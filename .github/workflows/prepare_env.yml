@@ -2,10 +2,15 @@ on:
   workflow_call:
     inputs:
       BUILD_DOCKER_CACHE:
-        description: "If true, will build the docker image cache"
+        description: 'If true, will build the docker image cache'
         type: boolean
         required: false
         default: false
+      embedded_workflows_branch:
+        description: 'Branch to checkout embedded-workflows repo'
+        type: string
+        required: false
+        default: 'EMB-115_migrate_to_gar'  # TODO: Change to `main` once merged
     outputs:
       RELEASE_VERSION:
         description: "The package version for this build"
@@ -18,8 +23,10 @@ env:
   # considered a master branch, e.g. "master/s-line" starts with "master"
   # from the list below and it is then a master branch.
   MASTER_BRANCH_LIST: "main master stable"
-  VERSION_REGEX: 'v[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,9}(-(dev|[0-9]{1,3}))?'
-  
+  # Regex to capture full prerelease identifiers including numeric suffixes
+  # Examples: v1.2.3, v1.2.3-alpha, v1.2.3-beta.1, v1.2.3-rc.2
+  VERSION_REGEX: 'v[0-9]{1,4}\.[0-9]{1,4}\.[0-9]{1,9}(-(alpha|beta|rc)(\.?[0-9]+)?)?'
+
 jobs:
   Prepare:
     name: 'Prepare Environment'
@@ -27,90 +34,78 @@ jobs:
     outputs:
       RELEASE_VERSION: ${{ steps.vars.outputs.RELEASE_VERSION }}
       RELEASE_REPO: ${{ steps.vars.outputs.RELEASE_REPO }}
-    env:
-      CURRENT_BRANCH_REF: ${{ github.ref_type == 'branch' && github.ref || github.event.base_ref }}  
     steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          token: ${{ secrets.ULTIMAKER_CI_PAT }}  # TODO: Remove PAT (limit long-lived secrets)
+          fetch-depth: 0  # Full history needed for git describe
+          submodules: recursive  # Needed for docker cache build
+
+      - name: Checkout Embedded-workflows repo
+        uses: actions/checkout@v4
+        with:
+          repository: Ultimaker/embedded-workflows
+          path: embedded-workflows
+          ref: ${{ inputs.embedded_workflows_branch }}
+
       - name: Generate Variables
         id: vars
         run: |
-          echo "GITHUB_REF ${GITHUB_REF}"
-          echo "GITHUB_REF_NAME ${GITHUB_REF_NAME}"
-          echo "GITHUB_REF_TYPE: ${GITHUB_REF_TYPE}"
-          RELEASE_VERSION="999.999.999"
-          RELEASE_REPO="none"
+          set -euo pipefail
           
-          # Check if this is a commit/tag in the master branch
-          IS_MASTER_BRANCH="no"
-          CURRENT_BRANCH="${CURRENT_BRANCH_REF##refs/heads/}"
-          for master_branch in $MASTER_BRANCH_LIST; do
-            # Try to remove "master_branch" from "CURRENT_BRANCH" and check if it changes
-            if [[ "${CURRENT_BRANCH##${master_branch}}" != "${CURRENT_BRANCH}" ]]; then
-              IS_MASTER_BRANCH="yes"
-              break
-            fi;
-          done;
-          echo "CURRENT_BRANCH: ${CURRENT_BRANCH}"
-          echo "IS_MASTER_BRANCH: ${IS_MASTER_BRANCH}"
+          # Use dedicated script for version generation
+          # This script can be tested locally and reused across workflows
+          VERSION_OUTPUT=$(./embedded-workflows/scripts/generate_semver_version.sh)
           
-          # Check what triggered this action: A Pull Request, a tag push or branch push
-          TRIGGER="pull_request"
-          if [[ "${GITHUB_EVENT_NAME}" == "push" ]]; then
-            if [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
-              TRIGGER="tag"
-            else
-              TRIGGER="branch"
-            fi
-          fi
+          # Parse output and set GitHub outputs
+          RELEASE_VERSION=$(echo "$VERSION_OUTPUT" | grep "^RELEASE_VERSION=" | cut -d= -f2)
+          RELEASE_REPO=$(echo "$VERSION_OUTPUT" | grep "^RELEASE_REPO=" | cut -d= -f2)
           
-          echo "TRIGGER: ${TRIGGER}"
-          
-          if [[ "${TRIGGER}" == "branch" && "${IS_MASTER_BRANCH}" == "yes" ]]; then
-            echo "This is a merge to master, lets make the Nightly Release"
-            
-            # Lets prepare the package name from the branch name. There are a few rules for debian package version and we must follow them:
-            # - Only lowercase letters: So lets convert all uppercase letter to lower case:            
-            NIGHTLY_PACKAGE_VERSION_SUFFIX="${GITHUB_REF_NAME@L}"
-            
-            # - Other accepted chars: numbers (0-9), '.', '+' and '-'. Lets convert all other chars to '-':
-            NIGHTLY_PACKAGE_VERSION_SUFFIX=${NIGHTLY_PACKAGE_VERSION_SUFFIX//[^0-9a-z+.-]/-}
-            
-            echo "Nightly Package Version Suffix: '${NIGHTLY_PACKAGE_VERSION_SUFFIX}'"
-            RELEASE_REPO="nightly-builds"
-            RELEASE_VERSION="$(date +%Y.%m.%d)-merge-${NIGHTLY_PACKAGE_VERSION_SUFFIX}"
-            
-          elif [[ "${TRIGGER}" == "tag" ]]; then
-            echo "This is a tag push, lets parse the tag >${GITHUB_REF_NAME}< and check if we should release"
-            VERSION=$(echo "${GITHUB_REF_NAME}" | grep -o -E -e "${VERSION_REGEX}") || true   # Return true if grep finds nothing
-            RELEASE_VERSION="${VERSION#v}"  # Remove the initial "v" leaving only the numbers and optional "-dev"
-            
-            if [[ -z "${RELEASE_VERSION}" ]]; then
-              echo "Failed to parse the tag, it does not follow the standard"
-            elif [[ "${RELEASE_VERSION//dev/}" == "${RELEASE_VERSION}" ]]; then ## True if there is no "dev" in the tag
-              echo "Success, this is a official release"
-              RELEASE_REPO="packages-released"
-            else
-              echo "Success, this is a development release"
-              RELEASE_REPO="packages-dev"
-            fi
-          fi
-          
-          if [[ "${RELEASE_REPO}" == "none" ]]; then
-              echo "This is an ordinary commit, do not release"
-              RELEASE_VERSION="999.999.999"
-          fi
-          
-          echo "RELEASE_VERSION: ${RELEASE_VERSION}"
-          echo "RELEASE_REPO: ${RELEASE_REPO}"
           echo RELEASE_VERSION="${RELEASE_VERSION}" >> $GITHUB_OUTPUT
           echo RELEASE_REPO="${RELEASE_REPO}" >> $GITHUB_OUTPUT
 
-      - name: Checkout Repository
-        if: ${{ inputs.BUILD_DOCKER_CACHE }}
-        uses: actions/checkout@v4
-        with:
-          token: ${{ secrets.ULTIMAKER_CI_PAT }}
-          submodules: recursive
+      - name: Generate Summary
+        run: |
+          set -euo pipefail
+          
+          echo "# Environment Preparation Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Release Information" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Version**: \`${{ steps.vars.outputs.RELEASE_VERSION }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Repository**: \`${{ steps.vars.outputs.RELEASE_REPO }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Trigger**: \`${GITHUB_EVENT_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Ref Type**: \`${GITHUB_REF_TYPE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Ref Name**: \`${GITHUB_REF_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Target GAR Repository" >> "$GITHUB_STEP_SUMMARY"
+          echo "The package will be published to: \`\${EMB_APT_REPO}-${{ steps.vars.outputs.RELEASE_REPO }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Version Strategy (SemVer 2.0)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "All versions follow **Semantic Versioning 2.0**: \`major.minor.patch-prerelease.0+build_metadata\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Prerelease progression**: \`alpha\` → \`beta\` → \`rc\` → release" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          
+          if [[ "${{ steps.vars.outputs.RELEASE_REPO }}" == "nightly-builds" ]]; then
+            echo "- **Type**: Beta build from master branch merge" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Format**: \`X.Y.Z-beta.0+YYYYMMDD.branch.sha\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Example**: \`1.2.4-beta.0+20260118.main.abc1234\`" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${{ steps.vars.outputs.RELEASE_REPO }}" == "packages-released" ]]; then
+            echo "- **Type**: Official release from git tag" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Format**: \`X.Y.Z+sha\` (from tag \`vX.Y.Z\`)" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Example**: \`1.2.3+abc1234\`" >> "$GITHUB_STEP_SUMMARY"
+          elif [[ "${{ steps.vars.outputs.RELEASE_REPO }}" == "packages-dev" ]]; then
+            echo "- **Type**: Development/pre-release" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Format**: \`X.Y.Z-{alpha|beta|rc}.0+sha\` (auto-bumped from latest tag)" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Example**: \`1.2.4-alpha.0+abc1234\`" >> "$GITHUB_STEP_SUMMARY"
+            echo "- **Supported tags**: \`vX.Y.Z-alpha\`, \`vX.Y.Z-beta\`, \`vX.Y.Z-rc\`, \`vX.Y.Z-dev\`" >> "$GITHUB_STEP_SUMMARY"
+          fi
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "**Build metadata** (\`+...\`) includes commit SHA for full traceability." >> "$GITHUB_STEP_SUMMARY"
 
+        # TODO: Use Workload Identity Pool
       - name: "Build Docker Image Cache"
         if: ${{ inputs.BUILD_DOCKER_CACHE }}
         run: |
