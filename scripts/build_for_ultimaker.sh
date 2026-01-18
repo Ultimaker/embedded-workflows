@@ -46,7 +46,7 @@ run_shellcheck()
 {
     docker run \
         --rm \
-        -v "$(pwd):${DOCKER_WORK_DIR}" \
+        -v "$(pwd):${DOCKER_WORK_DIR}:ro" \
         -w "${DOCKER_WORK_DIR}" \
         "registry.hub.docker.com/koalaman/shellcheck-alpine:stable" \
         "./run_shellcheck.sh"
