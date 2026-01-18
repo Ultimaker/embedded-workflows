@@ -27,7 +27,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.ULTIMAKER_CI_PAT }}  # TODO: Remove PAT (limit long-lived secrets)
+          token: ${{ secrets.ULTIMAKER_CI_PAT }}  # TODO: Replace with GITHUB_TOKEN - See https://ultimaker.atlassian.net/browse/EMB-120
           submodules: recursive
 
       - name: Checkout Embedded-workflows repo
@@ -65,15 +65,12 @@ jobs:
           # an encrypted firmware module using Ultimaker/umlicensemanager.
           # Other firmware components ignore this.
           export BUILDTYPE=PRODUCTION
-          # Encryption key for UMMOD file in "PRODUCTION" build mode.
-          # See umlicensemanager documentation
-          export UMLM_ENCRYPTION_KEY="${{ secrets.UMLM_ENCRYPTION_KEY }}"
-
           export RELEASE_VERSION="${{ env.RELEASE_VERSION }}"
           echo "RELEASE_VERSION: ${RELEASE_VERSION}"
           
           # Use the centralized build script from embedded-workflows
-          ./embedded-workflows/scripts/build_for_ultimaker.sh -a build
+          # Pass encryption key directly to the build script, not as global export
+          UMLM_ENCRYPTION_KEY="${{ secrets.UMLM_ENCRYPTION_KEY }}" ./embedded-workflows/scripts/build_for_ultimaker.sh -a build
 
       - name: Upload Artifact (Built package)
         uses: actions/upload-artifact@v4

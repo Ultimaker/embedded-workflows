@@ -15,7 +15,7 @@ jobs:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.ULTIMAKER_CI_PAT }}
+          token: ${{ secrets.ULTIMAKER_CI_PAT }}  # TODO: Replace with GITHUB_TOKEN - See https://ultimaker.atlassian.net/browse/EMB-120
           submodules: recursive
           fetch-depth: 0
 
