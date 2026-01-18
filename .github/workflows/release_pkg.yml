@@ -48,9 +48,9 @@ jobs:
         run: |
           set -euo pipefail
           # Find all .deb files and store the first one for summary
-          DEB_FILE=$(find ./dist -name "*.deb" -print -quit)
+          DEB_FILE=$(find . -name "*.deb" -print -quit)
           if [[ -z "${DEB_FILE:-}" ]]; then
-            echo "No .deb file found in ./dist" >&2
+            echo "No .deb file found in ." >&2
             exit 1
           fi
           echo "deb_file=${DEB_FILE}" >> "$GITHUB_OUTPUT"
@@ -67,8 +67,7 @@ jobs:
         id: publish
         run: |
           set -euo pipefail
-          # Upload all .deb packages found in ./dist
-          cd ./dist
+          # Upload all .deb packages found in .
           for package in *.deb; do
             if [[ -f "$package" ]]; then
               echo "Uploading ${package} to GAR..."
@@ -136,7 +135,7 @@ jobs:
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "5. Alternatively, install directly from the downloaded .deb file:" >> "$GITHUB_STEP_SUMMARY"
           echo '```bash' >> "$GITHUB_STEP_SUMMARY"
-          echo "sudo apt-get install -y ./dist/${PKG_NAME}_${PKG_VERSION}.deb" >> "$GITHUB_STEP_SUMMARY"
+          echo "sudo apt-get install -y ./${PKG_NAME}_${PKG_VERSION}.deb" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "## Build Configuration" >> "$GITHUB_STEP_SUMMARY"
