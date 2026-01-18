@@ -11,7 +11,7 @@ on:
         description: "The package version for this build"
         value: ${{ jobs.Prepare.outputs.RELEASE_VERSION }}
       RELEASE_REPO:
-        description: "The Cloudsmith repository to release the package"
+        description: "The GAR repository to release the package"
         value: ${{ jobs.Prepare.outputs.RELEASE_REPO }}
 env:
   # All branches starting with any of the items in the list below will be
