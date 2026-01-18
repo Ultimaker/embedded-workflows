@@ -5,6 +5,11 @@ on:
         description: "The GAR repository to release the package"
         required: true
         type: string
+      embedded_workflows_branch:
+        description: 'Branch to checkout embedded-workflows repo'
+        type: string
+        required: false
+        default: 'EMB-115_migrate_to_gar'  # TODO: Change to `main` once merged
 
 jobs:
   Release_Package:
@@ -20,13 +25,12 @@ jobs:
       EMB_GCP_PROJECT: ${{ vars.EMB_GCP_PROJECT }}
       EMB_WI_PROVIDER: ${{ vars.EMB_WI_PROVIDER }}
     steps:
-      - name: Cloning Embedded-Workflows on default branch
+      - name: Checkout Embedded-workflows repo
         uses: actions/checkout@v4
         with:
           repository: Ultimaker/embedded-workflows
-          token: ${{ secrets.ULTIMAKER_CI_PAT }}  # TODO: Remove PAT (limit long-lived secrets)
-          fetch-depth: 0
           path: embedded-workflows
+          ref: ${{ inputs.embedded_workflows_branch }}
 
       - uses: actions/download-artifact@v4
         with:

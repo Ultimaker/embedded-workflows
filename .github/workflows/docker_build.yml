@@ -31,7 +31,7 @@ on:
         description: 'Branch to checkout embedded-workflows repo'
         type: string
         required: false
-        default: 'main'
+        default: 'EMB-115_migrate_to_gar'  # TODO: Change to `main` once merged
     outputs:
       IMAGE_TAG:
         description: "Full image tag that was built"
@@ -148,10 +148,3 @@ jobs:
           echo "${{ steps.meta.outputs.tags }}" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "## Security Best Practices Applied" >> "$GITHUB_STEP_SUMMARY"
-          echo "- ✅ Workload Identity Federation (no long-lived credentials)" >> "$GITHUB_STEP_SUMMARY"
-          echo "- ✅ OAuth2 access token authentication" >> "$GITHUB_STEP_SUMMARY"
-          echo "- ✅ Multi-platform buildx support" >> "$GITHUB_STEP_SUMMARY"
-          echo "- ✅ Layer caching for faster builds" >> "$GITHUB_STEP_SUMMARY"
-          echo "- ✅ Automatic semantic versioning" >> "$GITHUB_STEP_SUMMARY"
-          echo "- ✅ Build provenance disabled for compatibility" >> "$GITHUB_STEP_SUMMARY"

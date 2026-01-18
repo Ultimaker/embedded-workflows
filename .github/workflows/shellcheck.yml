@@ -5,7 +5,7 @@ on:
         description: 'Branch to checkout embedded-workflows repo'
         type: string
         required: false
-        default: 'main'
+        default: 'EMB-115_migrate_to_gar'  # TODO: Change to `main` once merged
 
 jobs:
   Shellcheck:
