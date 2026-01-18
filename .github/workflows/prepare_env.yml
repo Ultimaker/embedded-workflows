@@ -77,33 +77,6 @@ jobs:
           echo "- **Trigger**: \`${GITHUB_EVENT_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Ref Type**: \`${GITHUB_REF_TYPE}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- **Ref Name**: \`${GITHUB_REF_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "## Target GAR Repository" >> "$GITHUB_STEP_SUMMARY"
-          echo "The package will be published to: \`\${EMB_APT_REPO}-${{ steps.vars.outputs.RELEASE_REPO }}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "## Version Strategy (SemVer 2.0)" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "All versions follow **Semantic Versioning 2.0**: \`major.minor.patch-prerelease.0+build_metadata\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Prerelease progression**: \`alpha\` → \`beta\` → \`rc\` → release" >> "$GITHUB_STEP_SUMMARY"
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          
-          if [[ "${{ steps.vars.outputs.RELEASE_REPO }}" == "nightly-builds" ]]; then
-            echo "- **Type**: Beta build from master branch merge" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Format**: \`X.Y.Z-beta.0+YYYYMMDD.branch.sha\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Example**: \`1.2.4-beta.0+20260118.main.abc1234\`" >> "$GITHUB_STEP_SUMMARY"
-          elif [[ "${{ steps.vars.outputs.RELEASE_REPO }}" == "packages-released" ]]; then
-            echo "- **Type**: Official release from git tag" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Format**: \`X.Y.Z+sha\` (from tag \`vX.Y.Z\`)" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Example**: \`1.2.3+abc1234\`" >> "$GITHUB_STEP_SUMMARY"
-          elif [[ "${{ steps.vars.outputs.RELEASE_REPO }}" == "packages-dev" ]]; then
-            echo "- **Type**: Development/pre-release" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Format**: \`X.Y.Z-{alpha|beta|rc}.0+sha\` (auto-bumped from latest tag)" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Example**: \`1.2.4-alpha.0+abc1234\`" >> "$GITHUB_STEP_SUMMARY"
-            echo "- **Supported tags**: \`vX.Y.Z-alpha\`, \`vX.Y.Z-beta\`, \`vX.Y.Z-rc\`, \`vX.Y.Z-dev\`" >> "$GITHUB_STEP_SUMMARY"
-          fi
-          echo "" >> "$GITHUB_STEP_SUMMARY"
-          echo "**Build metadata** (\`+...\`) includes commit SHA for full traceability." >> "$GITHUB_STEP_SUMMARY"
 
         # TODO: Use Workload Identity Pool
       - name: "Build Docker Image Cache"
