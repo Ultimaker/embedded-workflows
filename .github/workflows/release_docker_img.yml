@@ -19,7 +19,7 @@ on:
         default: 'EMB-115_migrate_to_gar'  # TODO: Change to `main` once merged
 
 env:
-  DOCKER_REGISTRY: ${{ vars.EMB_DOCKER_REGISTRY || 'europe-west1-docker.pkg.dev' }}
+  DOCKER_REGISTRY: ${{ vars.EMB_DOCKER_REGISTRY }}
   DOCKER_PROJECT: ${{ vars.EMB_GCP_PROJECT }}
   DOCKER_REPOSITORY: ${{ vars.EMB_DOCKER_REPOSITORY }}
   DOCKER_IMAGE_NAME: ${{ inputs.DOCKER_IMAGE_NAME }}

@@ -41,7 +41,7 @@ on:
         value: ${{ jobs.Build_Docker.outputs.IMAGE_DIGEST }}
 
 env:
-  DOCKER_REGISTRY: ${{ vars.EMB_DOCKER_REGISTRY || 'europe-west1-docker.pkg.dev' }}
+  DOCKER_REGISTRY: ${{ vars.EMB_DOCKER_REGISTRY }}
   DOCKER_PROJECT: ${{ vars.EMB_GCP_PROJECT }}
   DOCKER_REPOSITORY: ${{ vars.EMB_DOCKER_REPOSITORY }}
 
