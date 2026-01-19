@@ -32,7 +32,7 @@ jobs:
     name: 'Prepare Environment'
     runs-on: ubuntu-latest
     permissions:
-      contents: 'write'
+      contents: 'read'
       id-token: 'write'
     env:
       DOCKER_REGISTRY: ${{ vars.EMB_DOCKER_REGISTRY }}
