@@ -5,11 +5,6 @@ on:
         description: "The GAR repository to release the package"
         required: true
         type: string
-      embedded_workflows_branch:
-        description: 'Branch to checkout embedded-workflows repo'
-        type: string
-        required: false
-        default: 'EMB-115_migrate_to_gar'  # TODO: Change to `main` once merged
 
 jobs:
   Release_Package:
@@ -24,14 +19,8 @@ jobs:
       EMB_GCP_LOCATION: ${{ vars.EMB_GCP_LOCATION }}
       EMB_GCP_PROJECT: ${{ vars.EMB_GCP_PROJECT }}
       EMB_WI_PROVIDER: ${{ vars.EMB_WI_PROVIDER }}
-    steps:
-      - name: Checkout Embedded-workflows repo
-        uses: actions/checkout@v4
-        with:
-          repository: Ultimaker/embedded-workflows
-          path: embedded-workflows
-          ref: ${{ inputs.embedded_workflows_branch }}
 
+    steps:
       - uses: actions/download-artifact@v4
         with:
           name: build-package
@@ -88,9 +77,6 @@ jobs:
           DEB_FILE: ${{ steps.meta.outputs.deb_file }}
           PKG_NAME: ${{ steps.meta.outputs.pkg_name }}
           PKG_VERSION: ${{ steps.meta.outputs.pkg_version }}
-          APT_REPO: ${{ env.EMB_APT_REPO }}
-          GCP_PROJECT: ${{ env.EMB_GCP_PROJECT }}
-          GCP_LOCATION: ${{ env.EMB_GCP_LOCATION }}
         run: |
           set -euo pipefail
 
@@ -100,9 +86,9 @@ jobs:
           echo "- File: \`${DEB_FILE}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Package: \`${PKG_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "- Version: \`${PKG_VERSION}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Repository: \`${APT_REPO}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Project: \`${GCP_PROJECT}\`" >> "$GITHUB_STEP_SUMMARY"
-          echo "- Location: \`${GCP_LOCATION}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Repository: \`${EMB_APT_REPO}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Project: \`${EMB_GCP_PROJECT}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Location: \`${EMB_GCP_LOCATION}\`" >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "## Distribution Support" >> "$GITHUB_STEP_SUMMARY"
           echo "This package supports multiple Debian distributions. The distribution is determined by the package metadata set during the build process. Supported distributions are:" >> "$GITHUB_STEP_SUMMARY"
@@ -123,12 +109,12 @@ jobs:
           echo "2. Authenticate with gcloud and configure your project (if needed):" >> "$GITHUB_STEP_SUMMARY"
           echo '```bash' >> "$GITHUB_STEP_SUMMARY"
           echo "gcloud auth login" >> "$GITHUB_STEP_SUMMARY"
-          echo "gcloud config set project ${GCP_PROJECT}" >> "$GITHUB_STEP_SUMMARY"
+          echo "gcloud config set project ${EMB_GCP_PROJECT}" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "3. Add the GAR APT repository (replace \`buster\` with your target distribution):" >> "$GITHUB_STEP_SUMMARY"
           echo '```bash' >> "$GITHUB_STEP_SUMMARY"
-          echo "echo 'deb [signed-by=/usr/share/keyrings/artifact-registry-keyring.gpg] https://${GCP_LOCATION}-apt.pkg.dev/${GCP_PROJECT}/${APT_REPO} buster main' | sudo tee /etc/apt/sources.list.d/${APT_REPO}.list" >> "$GITHUB_STEP_SUMMARY"
+          echo "echo 'deb [signed-by=/usr/share/keyrings/artifact-registry-keyring.gpg] https://${EMB_GCP_LOCATION}-apt.pkg.dev/${EMB_GCP_PROJECT}/${EMB_APT_REPO} buster main' | sudo tee /etc/apt/sources.list.d/${EMB_APT_REPO}.list" >> "$GITHUB_STEP_SUMMARY"
           echo '```' >> "$GITHUB_STEP_SUMMARY"
           echo "" >> "$GITHUB_STEP_SUMMARY"
           echo "4. Update and install:" >> "$GITHUB_STEP_SUMMARY"

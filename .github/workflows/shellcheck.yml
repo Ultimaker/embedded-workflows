@@ -1,11 +1,5 @@
 on:
   workflow_call:
-    inputs:
-      embedded_workflows_branch:
-        description: 'Branch to checkout embedded-workflows repo'
-        type: string
-        required: false
-        default: 'EMB-115_migrate_to_gar'  # TODO: Change to `main` once merged
 
 jobs:
   Shellcheck:
@@ -19,15 +13,7 @@ jobs:
           submodules: recursive
           fetch-depth: 0
 
-      - name: Checkout Embedded-workflows repo
-        uses: actions/checkout@v4
-        with:
-          repository: Ultimaker/embedded-workflows
-          path: embedded-workflows
-          ref: ${{ inputs.embedded_workflows_branch }}
-
       - name: Shell Check
         id: shellcheck
         run: |
-          # Use the centralized build script from embedded-workflows
-          ./embedded-workflows/scripts/build_for_ultimaker.sh -a shellcheck
+          ./build_for_ultimaker.sh -a shellcheck
