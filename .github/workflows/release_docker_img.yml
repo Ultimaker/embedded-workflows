@@ -17,23 +17,26 @@ on:
 env:
   DOCKER_IMAGE_NAME: ghcr.io/ultimaker/${{ inputs.DOCKER_IMAGE_NAME }}
   DOCKER_TAG_PREFIX: ${{ inputs.DOCKER_TAG_PREFIX }}
-  
+
 jobs:
   Build:
     name: 'Build and Release Docker Image'
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.ULTIMAKER_CI_PAT }}
+          token: ${{ secrets.ULTIMAKER_CI_PAT }}  # TODO: Replace with GITHUB_TOKEN - See https://ultimaker.atlassian.net/browse/EMB-120
           submodules: recursive
 
       - name: Login in GitHub Container Registry
         id: ghcr_login
         run: |
           echo "${{ secrets.ULTIMAKER_CI_PAT }}" | docker login ghcr.io -u $ --password-stdin
-                   
+
       - name: Build Docker Image
         id: build
         run: |
@@ -55,11 +58,3 @@ jobs:
           echo "DOCKER_IMAGE_NAME: ${DOCKER_IMAGE_NAME}"
           echo "DOCKER_IMAGE_VERSION: ${DOCKER_IMAGE_VERSION}"
           docker push "${DOCKER_IMAGE_NAME}:${DOCKER_IMAGE_VERSION}"
-
-      - name: Dump GitHub context
-        if: ${{ always() }}
-        run: |
-          echo "${{ toJson(github) }}"
-          echo "${{ toJson(steps) }}"
-          echo "${{ toJson(runner) }}"
-

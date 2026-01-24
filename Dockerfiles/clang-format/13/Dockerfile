@@ -16,4 +16,10 @@ RUN apt-get update && \
 # clang-format with pip
 RUN pip3 install clang-format==13.0.0
 
+# Create non-privileged user for security
+RUN useradd -m -u 1000 -s /bin/bash builder && \
+    chown -R builder:builder /work
+
+USER builder
+
 COPY Dockerfile Dockerfile

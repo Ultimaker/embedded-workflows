@@ -10,15 +10,18 @@ jobs:
   Build:
     name: 'Build Package'
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     env:
       RELEASE_VERSION: ${{ inputs.RELEASE_VERSION }}
     steps:
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.ULTIMAKER_CI_PAT }}
+          token: ${{ secrets.ULTIMAKER_CI_PAT }}  # TODO: Replace with GITHUB_TOKEN - See https://ultimaker.atlassian.net/browse/EMB-120
           submodules: recursive
-         
+
       - name: Build Package
         id: build
         run: |
@@ -27,30 +30,14 @@ jobs:
           # an encrypted firmware module using Ultimaker/umlicensemanager.
           # Other firmware components ignore this.
           export BUILDTYPE=PRODUCTION
-          # Encryption key for UMMOD file in "PRODUCTION" build mode.
-          # See umlicensemanager documentation
-          export UMLM_ENCRYPTION_KEY="${{ secrets.UMLM_ENCRYPTION_KEY }}"
-
           export RELEASE_VERSION="${{ env.RELEASE_VERSION }}"
           echo "RELEASE_VERSION: ${RELEASE_VERSION}"
           
-          ./build_for_ultimaker.sh -a build
-          
+          # Pass encryption key directly to the build script, not as global export
+          UMLM_ENCRYPTION_KEY="${{ secrets.UMLM_ENCRYPTION_KEY }}" ./build_for_ultimaker.sh -a build
+
       - name: Upload Artifact (Built package)
         uses: actions/upload-artifact@v4
         with:
           name: build-package
           path: "./*.deb"
-
-      - name: Dump GitHub context
-        if: ${{ always() }}
-        env:
-           GITHUB_CONTEXT: ${{ toJson(github) }}
-           JOB_CONTEXT: ${{ toJson(job) }}
-           STEPS_CONTEXT: ${{ toJson(steps) }}
-           RUNNER_CONTEXT: ${{ toJson(runner) }}
-        run: |
-          echo "${GITHUB_CONTEXT}"
-          echo "${JOB_CONTEXT}"
-          echo "${STEPS_CONTEXT}"
-          echo "${RUNNER_CONTEXT}"

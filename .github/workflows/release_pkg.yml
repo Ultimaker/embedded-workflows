@@ -2,7 +2,7 @@ on:
   workflow_call:
     inputs:
       RELEASE_REPO:
-        description: "The Cloudsmith repository to release the package"
+        description: "The GAR repository to release the package"
         required: true
         type: string
 
@@ -10,51 +10,137 @@ jobs:
   Release_Package:
     name: 'Release Package'
     runs-on: ubuntu-latest
+    permissions:
+      contents: 'read'
+      id-token: 'write'
     env:
-      RELEASE_REPO: ${{ inputs.RELEASE_REPO }}
+      EMB_APT_REPO: ${{ inputs.RELEASE_REPO }}
+      EMB_APT_SERVICE_ACCOUNT: ${{ vars.EMB_APT_SERVICE_ACCOUNT }}
+      EMB_GCP_LOCATION: ${{ vars.EMB_GCP_LOCATION }}
+      EMB_GCP_PROJECT: ${{ vars.EMB_GCP_PROJECT }}
+      EMB_WI_PROVIDER: ${{ vars.EMB_WI_PROVIDER }}
+
     steps:
-      - name: Cloning Embedded-Workflows on default branch
-        uses: actions/checkout@v4
-        with:
-          repository: Ultimaker/embedded-workflows
-          token: ${{ secrets.ULTIMAKER_CI_PAT }}
-          fetch-depth: 0
-          path: embedded-workflows
-          
       - uses: actions/download-artifact@v4
         with:
           name: build-package
-          
-      - name: Display structure of downloaded files
-        shell: bash
-        run: ls -lh
-        
-      - name: Build Cloudsmith Docker image
-        shell: bash
+
+      - id: auth
+        name: 'Authenticate to Google Cloud'
+        uses: 'google-github-actions/auth@v2'
+        with:
+          token_format: 'access_token'
+          workload_identity_provider: ${{ env.EMB_WI_PROVIDER }}
+          service_account: ${{ env.EMB_APT_SERVICE_ACCOUNT }}
+
+      - name: 'Set up Cloud SDK'
+        uses: 'google-github-actions/setup-gcloud@v2'
+
+      - name: 'Extract package metadata'
+        id: meta
         run: |
-          docker build embedded-workflows/Dockerfiles/ -f embedded-workflows/Dockerfiles/cloudsmith.Dockerfile -t cloudsmith-cli:latest
-          
-      - name: Upload Debian Packages
-        shell: bash
+          set -euo pipefail
+          # Find all .deb files and store the first one for summary
+          DEB_FILE=$(find . -name "*.deb" -print -quit)
+          if [[ -z "${DEB_FILE:-}" ]]; then
+            echo "No .deb file found in ." >&2
+            exit 1
+          fi
+          echo "deb_file=${DEB_FILE}" >> "$GITHUB_OUTPUT"
+
+          # Extract package name and version from filename: <name>_<version>-<rev>.deb or <name>_<version>.deb
+          DEB_BASENAME=$(basename "$DEB_FILE")
+          PKG_NAME=${DEB_BASENAME%%_*}
+          PKG_VERSION_PART=${DEB_BASENAME#*_}
+          PKG_VERSION=${PKG_VERSION_PART%%.deb}
+          echo "pkg_name=${PKG_NAME}" >> "$GITHUB_OUTPUT"
+          echo "pkg_version=${PKG_VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: 'Publish to GAR'
+        id: publish
         run: |
+          set -euo pipefail
+          # Upload all .deb packages found in .
           for package in *.deb; do
-            echo " "
-            echo "########## Uploading ${package} ##########"
-            echo " "
-            docker run -v "$(pwd):/build" cloudsmith-cli:latest cloudsmith push deb ultimaker/${{ env.RELEASE_REPO }}/debian/buster /build/${package} -k ${{ secrets.CLOUDSMITH_API_KEY }}
-            docker run -v "$(pwd):/build" cloudsmith-cli:latest cloudsmith push deb ultimaker/${{ env.RELEASE_REPO }}/debian/bookworm /build/${package} -k ${{ secrets.CLOUDSMITH_API_KEY }}
-          done;
-         
-      - name: Dump GitHub context
-        if: ${{ always() }}
+            if [[ -f "$package" ]]; then
+              echo "Uploading ${package} to GAR..."
+              gcloud artifacts apt upload "$EMB_APT_REPO" \
+                --project="$EMB_GCP_PROJECT" \
+                --location="$EMB_GCP_LOCATION" \
+                --source="$package"
+            fi
+          done
+
+      - name: 'Publish summary'
+        if: ${{ success() }}
         env:
-           GITHUB_CONTEXT: ${{ toJson(github) }}
-           JOB_CONTEXT: ${{ toJson(job) }}
-           STEPS_CONTEXT: ${{ toJson(steps) }}
-           RUNNER_CONTEXT: ${{ toJson(runner) }}
-        shell: bash
+          DEB_FILE: ${{ steps.meta.outputs.deb_file }}
+          PKG_NAME: ${{ steps.meta.outputs.pkg_name }}
+          PKG_VERSION: ${{ steps.meta.outputs.pkg_version }}
         run: |
-          echo "${GITHUB_CONTEXT}"
-          echo "${JOB_CONTEXT}"
-          echo "${STEPS_CONTEXT}"
-          echo "${RUNNER_CONTEXT}"
+          set -euo pipefail
+
+          echo "# Release summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "Published .deb package to Google Artifact Registry (APT):" >> "$GITHUB_STEP_SUMMARY"
+          echo "- File: \`${DEB_FILE}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Package: \`${PKG_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Version: \`${PKG_VERSION}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Repository: \`${EMB_APT_REPO}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Project: \`${EMB_GCP_PROJECT}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- Location: \`${EMB_GCP_LOCATION}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Distribution Support" >> "$GITHUB_STEP_SUMMARY"
+          echo "This package supports multiple Debian distributions. The distribution is determined by the package metadata set during the build process. Supported distributions are:" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`buster\` (Debian 10)" >> "$GITHUB_STEP_SUMMARY"
+          echo "- \`bookworm\` (Debian 12)" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "The GAR repository automatically organizes packages by distribution based on the metadata in the .deb file. See **Build Configuration** below for how to set distribution metadata." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## How to use" >> "$GITHUB_STEP_SUMMARY"
+          echo "You can install from the GAR APT repository using the following steps on Ubuntu/Debian:" >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "1. Install the Artifact Registry APT transport helper:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "sudo apt-get update" >> "$GITHUB_STEP_SUMMARY"
+          echo "sudo apt-get install -y artifact-registry-apt-transport" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "2. Authenticate with gcloud and configure your project (if needed):" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "gcloud auth login" >> "$GITHUB_STEP_SUMMARY"
+          echo "gcloud config set project ${EMB_GCP_PROJECT}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "3. Add the GAR APT repository (replace \`buster\` with your target distribution):" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "echo 'deb [signed-by=/usr/share/keyrings/artifact-registry-keyring.gpg] https://${EMB_GCP_LOCATION}-apt.pkg.dev/${EMB_GCP_PROJECT}/${EMB_APT_REPO} buster main' | sudo tee /etc/apt/sources.list.d/${EMB_APT_REPO}.list" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "4. Update and install:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "sudo apt-get update" >> "$GITHUB_STEP_SUMMARY"
+          echo "sudo apt-get install -y ${PKG_NAME}" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "5. Alternatively, install directly from the downloaded .deb file:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```bash' >> "$GITHUB_STEP_SUMMARY"
+          echo "sudo apt-get install -y ./${PKG_NAME}_${PKG_VERSION}.deb" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "## Build Configuration" >> "$GITHUB_STEP_SUMMARY"
+          echo "The distribution metadata for the Debian package is set during the build process. This ensures the package is automatically organized by distribution in the GAR repository." >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Setting Distribution in CMake (CPack)" >> "$GITHUB_STEP_SUMMARY"
+          echo "If using CMake with CPack, set the distribution in your \`CMakeLists.txt\`:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```cmake' >> "$GITHUB_STEP_SUMMARY"
+          echo 'set(CPACK_DEBIAN_PACKAGE_DISTRIBUTION "buster")  # or "bookworm"' >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "### Setting Distribution in Debian Control File" >> "$GITHUB_STEP_SUMMARY"
+          echo "Add the distribution to your \`debian/control\` file:" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "Distribution: buster" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          echo "" >> "$GITHUB_STEP_SUMMARY"
+          echo "The package metadata is embedded in the .deb file and used by GAR to automatically organize packages by distribution, eliminating the need for manual distribution tagging during upload." >> "$GITHUB_STEP_SUMMARY"
