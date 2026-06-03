@@ -106,7 +106,7 @@ jobs:
 
       - name: Checkout Repository
         if: ${{ inputs.BUILD_DOCKER_CACHE }}
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           token: ${{ secrets.ULTIMAKER_CI_PAT }}
           submodules: recursive
