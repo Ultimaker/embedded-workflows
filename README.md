@@ -5,8 +5,8 @@ Do not forget this is **PUBLIC** repository.
 Implemented Reusable Workflows:
 
 - **Prepare Environment** (prepare_env.yml): By parsing the github context, it sets the variables `RELEASE_VERSION` and `RELEASE_REPO` for the next workflows.
-The `RELEASE_VERSION` will be `999.999.999` for a regular commit to a non-master branch. For a merge to a master branch, it will get the nightly build format `<yyyy.mm.dd>-merge-<branch>`. For a tag in a branch, it will take the tag version (if properly formatted).
-The `RELEASE_REPO` will have the Cloudsmith target repository to upload the package: `night-builds` for a merge to a master branch, `packages-released` for a tag without the `-dev` in a master branch suffix and `packages-dev` for a tag with the `-dev` suffix in a non-master branch.
+The `RELEASE_VERSION` will be `999.999.999` for a regular commit to a non-master branch without a JIRA ticket. If the development branch matches a JIRA ticket prefix/pattern (e.g. `EMB-589-feature`), it will be formatted as `<ticket_number>.<mmdd>.<hhmmss>-dev`. For a merge to a master branch, it will get the nightly build format `<yyyy.mm.dd>-merge-<branch>`. For a tag in a branch, it will take the tag version (if properly formatted).
+The `RELEASE_REPO` will have the Cloudsmith target repository to upload the package: `night-builds` for a merge to a master branch, `packages-released` for a tag without the `-dev` in a master branch suffix, and `packages-dev` for a development branch with a JIRA ticket or a tag with the `-dev` suffix.
 If the `BUILD_DOCKER_CACHE` input boolean is set to `true`, it will also login in the `Github Container Registry` and call `build_for_ultimaker.sh -a build_docker_cache` in order to cache the docker image. This technique is currently used by (and can be copied from) `Opinicus` to cache the docker image.
 
 - **Shellcheck** (shellcheck.yml): Call `./build_for_ultimaker.sh -a shellcheck` for the repository.

@@ -92,6 +92,19 @@ jobs:
               echo "Success, this is a development release"
               RELEASE_REPO="packages-dev"
             fi
+          else
+            # For pushes to dev branches or PR review commits, check for a JIRA ticket prefix/pattern
+            DEV_BRANCH="${GITHUB_HEAD_REF:-${CURRENT_BRANCH}}"
+            echo "Checking development branch '${DEV_BRANCH}' for JIRA ticket..."
+
+            # Match JIRA project keys (e.g., EMB-589, SEM-1234, CES_1234, CURA-10111)
+            if [[ "${DEV_BRANCH}" =~ (^|/)([A-Za-z]{2,10})[-_]([0-9]+) ]]; then
+              JIRA_TICKET="${BASH_REMATCH[2]}-${BASH_REMATCH[3]}"
+              JIRA_NUMBER="${BASH_REMATCH[3]}"
+              echo "Found JIRA ticket '${JIRA_TICKET}' (number: ${JIRA_NUMBER})"
+              RELEASE_REPO="packages-dev"
+              RELEASE_VERSION="${JIRA_NUMBER}.$(date +%m%d.%H%M%S)-dev"
+            fi
           fi
           
           if [[ "${RELEASE_REPO}" == "none" ]]; then
