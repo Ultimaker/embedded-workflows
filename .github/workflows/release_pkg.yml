@@ -36,13 +36,15 @@ jobs:
           
       - name: Upload Debian Packages
         shell: bash
+        env:
+          COMMIT_SHA: ${{ github.event.pull_request.head.sha || github.sha }}
         run: |
+          SHORT_SHA="${COMMIT_SHA:0:7}"
           for package in *.deb; do
             echo " "
-            echo "########## Uploading ${package} ##########"
+            echo "########## Uploading ${package} (commit: ${SHORT_SHA}) ##########"
             echo " "
-            docker run -v "$(pwd):/build" cloudsmith-cli:latest cloudsmith push deb ultimaker/${{ env.RELEASE_REPO }}/debian/buster /build/${package} -k ${{ secrets.CLOUDSMITH_API_KEY }}
-            docker run -v "$(pwd):/build" cloudsmith-cli:latest cloudsmith push deb ultimaker/${{ env.RELEASE_REPO }}/debian/bookworm /build/${package} -k ${{ secrets.CLOUDSMITH_API_KEY }}
+            docker run -v "$(pwd):/build" cloudsmith-cli:latest cloudsmith push deb ultimaker/${{ env.RELEASE_REPO }}/debian/bookworm /build/${package} --tags "${SHORT_SHA}" -k ${{ secrets.CLOUDSMITH_API_KEY }}
           done;
          
       - name: Dump GitHub context
